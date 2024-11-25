@@ -196,9 +196,15 @@
                 const response = await fetch('product-data.json');
                 if (!response.ok) throw new Error(`HTTPエラー: ${response.status}`);
                 productData = await response.json();
-                console.log('商品データをロードしました:', productData);
+                if (productData.length === 0) {
+                    console.error('商品データが空です。');
+                    document.getElementById('status').textContent = '商品データが空です。';
+                } else {
+                    console.log('商品データをロードしました:', productData);
+                }
             } catch (error) {
                 console.error('商品データのロードに失敗:', error);
+                document.getElementById('status').textContent = '商品データのロードに失敗しました。';
             }
         }
 
@@ -235,10 +241,14 @@
 
         function processScanResult(result) {
             if (!result || !result.codeResult || !result.codeResult.code) return;
-            const code = result.codeResult.code;
+            const code = result.codeResult.code.trim();
+            console.log(`スキャンされたバーコード: ${code}`);
 
             const now = Date.now();
-            if (code === lastScannedCode && now - lastScannedTime < SCAN_COOLDOWN) return;
+            if (code === lastScannedCode && now - lastScannedTime < SCAN_COOLDOWN) {
+                console.log(`重複スキャンを防止: ${code}`);
+                return;
+            }
             lastScannedCode = code;
             lastScannedTime = now;
 
@@ -254,6 +264,8 @@
                     updateRefillList();
                     alert(`追加: ${product.name}`);
                 }
+            } else {
+                alert(`バーコード ${code} は商品データに登録されていません。`);
             }
         }
 
@@ -266,6 +278,8 @@
                     updateRefillList();
                     alert(`${product.name} をピッキング状態に更新`);
                 }
+            } else {
+                alert(`バーコード ${code} は商品データに登録されていません。`);
             }
         }
 
@@ -275,8 +289,15 @@
             refillList.forEach(item => {
                 const li = document.createElement('li');
                 li.textContent = `${item.name} (${item.status})`;
+                if (item.status === 'ピッキング') {
+                    li.classList.add('picking-status');
+                }
                 listElement.appendChild(li);
             });
+        }
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         document.addEventListener('DOMContentLoaded', loadProductData);
