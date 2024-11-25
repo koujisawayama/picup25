@@ -278,6 +278,7 @@
                     refillList.push({ code: product.barCode, name: product.name, status: '要補充' });
                     updateRefillList();
                     showStatusMessage(`追加: ${product.name}`, 'success');
+                    playSound('success');
                 }
             } else {
                 showStatusMessage(`バーコード ${code} は商品データに登録されていません。`, 'error');
@@ -292,6 +293,7 @@
                     existingItem.status = 'ピッキング';
                     updateRefillList();
                     showStatusMessage(`${product.name} をピッキング状態に更新`, 'success');
+                    playSound('picking');
                 }
             } else {
                 showStatusMessage(`バーコード ${code} は商品データに登録されていません。`, 'error');
