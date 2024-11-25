@@ -4,7 +4,291 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💪飲料補充担当者支援アプリ</title>
+    <style><!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💪飲料補充担当者支援アプリ</title>
     <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #001829;
+            color: #e0f2ff;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+        h1 {
+            color: #4db8ff;
+            text-shadow: 0 0 10px #4db8ff;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        button {
+            font-size: 1.2rem;
+            padding: 15px 30px;
+            background-color: #4db8ff;
+            color: #001829;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        button:hover {
+            background-color: #3399ff;
+        }
+        button:active {
+            background-color: #1a73e8;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        #reader {
+            width: 100%;
+            max-width: 300px;
+            height: 300px;
+            margin: 20px auto;
+            border: 2px solid #4db8ff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+        #status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        #status.success {
+            background-color: #00ccff;
+            color: #001829;
+        }
+        #status.error {
+            background-color: #ff3366;
+            color: #ffffff;
+        }
+        ul {
+            padding-left: 0;
+            list-style: none;
+            text-align: left;
+            margin-top: 20px;
+        }
+        li {
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #00304d;
+            color: #e0f2ff;
+        }
+        .picking-status {
+            background-color: #006d77;
+            color: #ffffff;
+        }
+        .instructions {
+            margin-top: 30px;
+            text-align: left;
+        }
+        .instructions h2 {
+            color: #4db8ff;
+        }
+        .instruction-item {
+            margin-bottom: 20px;
+            background-color: #002a3b;
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .instruction-item img {
+            max-width: 80px;
+            max-height: 80px;
+            border-radius: 8px;
+            border: 2px solid #4db8ff;
+        }
+        .instruction-item p {
+            margin: 0;
+            color: #e0f2ff;
+        }
+        .scroll-top {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #4db8ff;
+            color: #001829;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        .scroll-top:hover {
+            background-color: #3399ff;
+        }
+    </style>
+</head>
+<body>
+    <h1>💪飲料補充支援アプリ</h1>
+
+    <div class="button-container">
+        <button onclick="startScanning('sales')">売場スキャン</button>
+        <button onclick="startScanning('warehouse')">倉庫スキャン</button>
+    </div>
+
+    <div id="reader"></div>
+    <div id="status"></div>
+
+    <h2>スキャン結果</h2>
+    <ul id="salesRefillList"></ul>
+
+    <div class="instructions">
+        <h2>使い方</h2>
+
+        <div class="instruction-item">
+            <img src="./images/step1.png" alt="スキャン画面の画像">
+            <p>1. 売場スキャンボタンをクリックし、補充が必要な商品のバーコードをカメラでスキャンしてください。</p>
+        </div>
+        <div class="instruction-item">
+            <img src="./images/step2.png" alt="リスト表示の画像">
+            <p>2. スキャンされた商品はリストに追加されます。</p>
+        </div>
+        <div class="instruction-item">
+            <img src="./images/step3.png" alt="ピッキング状態の画像">
+            <p>3. 倉庫スキャンで商品の状態を更新し、リストに反映されます。</p>
+        </div>
+    </div>
+
+    <div class="scroll-top" onclick="scrollToTop()">↑ 一番上に戻る</div>
+
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script>
+        let productData = [];
+        let refillList = [];
+        let isPlayingSound = false;
+
+        async function loadProductData() {
+            try {
+                const response = await fetch('product-data.json');
+                if (!response.ok) {
+                    throw new Error(`HTTPエラー: ${response.status}`);
+                }
+                productData = await response.json();
+                console.log('商品データをロードしました:', productData);
+            } catch (error) {
+                console.error('商品データのロードに失敗しました:', error);
+            }
+        }
+
+        function startScanning(mode) {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = 'スキャン進行中...';
+            statusElement.className = '';
+
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                {
+                    fps: 10,
+                    qrbox: { width: 200, height: 200 }
+                },
+                (decodedText) => {
+                    if (mode === 'sales') {
+                        handleSalesScan(decodedText);
+                    } else if (mode === 'warehouse') {
+                        handleWarehouseScan(decodedText);
+                    }
+                },
+                (errorMessage) => {
+                    console.error('スキャンエラー:', errorMessage);
+                }
+            ).catch(err => {
+                statusElement.textContent = `エラー: ${err}`;
+                statusElement.className = 'error';
+            });
+        }
+
+        function handleSalesScan(decodedText) {
+            const statusElement = document.getElementById('status');
+            const product = productData.find(item => item.barCode === decodedText.trim());
+            if (product) {
+                if (!refillList.some(item => item.code === product.barCode)) {
+                    refillList.push({ code: product.barCode, name: product.name, status: '要補充' });
+                    updateRefillList();
+                    playSound('success');
+                    statusElement.textContent = `バーコード ${decodedText} (${product.name}) をリストに追加しました。`;
+                    statusElement.className = 'success';
+                } else {
+                    playSound('error');
+                    statusElement.textContent = `バーコード ${decodedText} (${product.name}) は既にリストに存在します。`;
+                }
+            } else {
+                playSound('error');
+                statusElement.textContent = `商品コード ${decodedText} が見つかりません。`;
+                statusElement.className = 'error';
+            }
+        }
+
+        function handleWarehouseScan(decodedText) {
+            const statusElement = document.getElementById('status');
+            const item = refillList.find(product => product.code === decodedText.trim());
+            if (item) {
+                item.status = 'ピッキング';
+                updateRefillList();
+                playSound('picking');
+                statusElement.textContent = `商品 ${item.name} をピッキング状態に更新しました。`;
+                statusElement.className = 'success';
+            } else {
+                playSound('error');
+                statusElement.textContent = `商品コード ${decodedText} がリストにありません。`;
+                statusElement.className = 'error';
+            }
+        }
+
+        function updateRefillList() {
+            const listElement = document.getElementById('salesRefillList');
+            listElement.innerHTML = '';
+            refillList.forEach(item => {
+                const li = document.createElement('li');
+                li.textContent = `${item.name} (${item.status})`;
+                li.className = item.status === 'ピッキング' ? 'picking-status' : '';
+                listElement.appendChild(li);
+            });
+        }
+
+        async function playSound(type) {
+            if (isPlayingSound) return;
+            isPlayingSound = true;
+            const sounds = {
+                success: "./sounds/success.mp3",
+                error: "./sounds/error.mp3",
+                picking: "./sounds/picking.mp3"
+            };
+            try {
+                const audio = new Audio(sounds[type]);
+                await audio.play();
+            } catch (err) {
+                console.error('音声再生エラー:', err);
+            } finally {
+                isPlayingSound = false;
+            }
+        }
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        document.addEventListener('DOMContentLoaded', loadProductData);
+    </script>
+</body>
+</html>
+
         body {
             font-family: 'Roboto', sans-serif;
             background-color: #001829;
