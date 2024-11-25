@@ -101,6 +101,25 @@
     <h2>スキャン結果</h2>
     <ul id="salesRefillList"></ul>
 
+    <div class="instructions">
+        <h2>使い方</h2>
+
+        <div class="instruction-item">
+            <img src="./images/step1.png" alt="スキャン画面の画像">
+            <p>1. 売場スキャンボタンをクリックし、補充が必要な商品のバーコードをカメラでスキャンしてください。</p>
+        </div>
+        <div class="instruction-item">
+            <img src="./images/step2.png" alt="リスト表示の画像">
+            <p>2. スキャンされた商品はリストに追加されます。</p>
+        </div>
+        <div class="instruction-item">
+            <img src="./images/step3.png" alt="ピッキング状態の画像">
+            <p>3. 倉庫スキャンで商品の状態を更新し、リストに反映されます。</p>
+        </div>
+    </div>
+
+    <div class="scroll-top" onclick="scrollToTop()">↑ 一番上に戻る</div>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
     <script>
         let productData = [];
