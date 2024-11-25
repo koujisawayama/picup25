@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-        <meta charset="UTF-8">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💪飲料補充担当者支援アプリ</title>
     <style>
@@ -47,22 +47,19 @@
             max-width: 300px;
             height: 200px;
             margin: 20px auto;
-            border: 2px solid #4db8ff;
-            border-radius: 10px;
+            position: relative; /* 相対位置に変更 */
             overflow: hidden;
-            position: relative;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
         }
-        #reader::after {
-            content: '';
-            display: block;
+        /* スキャンガイドのスタイル */
+        #scan-guide {
             position: absolute;
             top: 50%;
             left: 50%;
             width: 80%;
-            height: 2px;
-            background-color: rgba(255, 255, 255, 0.6);
+            height: 30px;
+            border: 2px dashed rgba(255, 255, 255, 0.7);
             transform: translate(-50%, -50%);
+            box-sizing: border-box;
         }
         #status {
             margin-top: 10px;
@@ -142,45 +139,25 @@
 </head>
 <body>
     <h1>💪飲料補充支援アプリ</h1>
-     
 
     <div class="button-container">
         <button onclick="startScanning('sales')">売場スキャン</button>
         <button onclick="startScanning('warehouse')">倉庫スキャン</button>
+        <button onclick="stopScanning()">スキャン停止</button> <!-- スキャン停止ボタンを追加 -->
     </div>
 
-    <div id="reader"></div>
+    <div id="reader">
+        <!-- スキャンガイドを追加 -->
+        <div id="scan-guide"></div>
+        <!-- バーコード位置を表示するキャンバス -->
+        <canvas id="overlay" style="position: absolute; top: 0; left: 0;"></canvas>
+    </div>
     <div id="status"></div>
 
     <h2>スキャン結果</h2>
     <ul id="salesRefillList"></ul>
 
-    <div class="instructions">
-        <h2>使い方</h2>
-
-        <div class="instruction-item">
-            <img src="./images/step1.png" alt="スキャン画面の画像">
-            <p>1. 売場スキャンボタンをクリックし、補充が必要な商品のバーコードをカメラでスキャンしてください。
-            <br>※カメラの使用確認画面が出たら許可してください
-            <br>定番商品のJANをスキャンしたらいい感じの音が鳴ります😊スポット商品などは登録無いのでスキャンしてもリストに出来ません</p>
-
-        </div>
-        <div class="instruction-item">
-            <img src="./images/step2.png" alt="リスト表示の画像">
-            <p>2. スキャンされた商品はリストに追加されます。📝ブラウザ再読み込みとかスマホの電源切るとかしたら、リストはリセットされます。</p>
-        </div>
-        <div class="instruction-item">
-            <img src="./images/step3.png" alt="ピッキング状態の画像">
-            <p>3. 補充が必要な商品をスキャンし終えたら倉庫にてケースの在庫のバーコードをスキャンします。ピッキングが必要な商品なら、よい感じの音で教えてくれます。ピッキングしませう！👍</p>
-        </div>
-        
-        <div class="instruction-item">
-            <img src="./images/step4.png" alt="リストの画像">
-            <p>4. ピッキングされた商品のリストは色が変わります
-            <br>どの商品がピッキングされたか凄く分かりやすいよね✌</p>
-        </div>
-<blockquote class="imgur-embed-pub" lang="en" data-id="a/q08k4gj" data-context="false" ><a href="//imgur.com/a/q08k4gj"></a></blockquote><script async src="//s.imgur.com/min/embed.js" charset="utf-8"></script>
-    </div>
+    <!-- 使い方のセクションは省略します -->
 
     <div class="scroll-top" onclick="scrollToTop()">↑ 一番上に戻る</div>
     <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
@@ -214,44 +191,66 @@
             const statusElement = document.getElementById('status');
             statusElement.textContent = 'スキャンを開始しています...';
 
+            // 既存のスキャンを停止
+            if (Quagga.initialized) {
+                Quagga.stop();
+                Quagga.offDetected(processScanResult);
+                Quagga.offProcessed(processFrame);
+            }
+
             Quagga.init({
                 inputStream: {
                     name: "Live",
                     type: "LiveStream",
                     target: document.querySelector('#reader'),
                     constraints: {
-                        width: { min: 320, ideal: 640, max: 1280 },
-                        height: { min: 240, ideal: 480, max: 720 },
                         facingMode: "environment"
                     }
                 },
                 decoder: {
-                    readers: ["ean_reader"],
+                    readers: ["ean_reader"], // JANコードはEAN-13と互換性あり
                     multiple: false
                 },
+                locate: false, // 処理を軽くするためにfalseに設定
                 locator: {
                     halfSample: true,
                     patchSize: "medium"
                 },
-                numOfWorkers: navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 4,
-                locate: true,
-                frequency: 10 // デコードの頻度を下げる
+                numOfWorkers: 1, // モバイルでは1が推奨
+                frequency: 10
             }, function(err) {
                 if (err) {
                     console.error('Quagga初期化エラー:', err);
                     statusElement.textContent = 'エラー: スキャン初期化に失敗';
                     return;
                 }
+                Quagga.initialized = true;
                 Quagga.start();
                 statusElement.textContent = 'スキャン中...';
-            });
 
-            Quagga.onDetected(processScanResult);
+                // オーバーレイキャンバスのサイズを設定
+                const overlay = document.getElementById('overlay');
+                const canvasWidth = parseInt(window.getComputedStyle(document.getElementById('reader')).width);
+                const canvasHeight = parseInt(window.getComputedStyle(document.getElementById('reader')).height);
+                overlay.width = canvasWidth;
+                overlay.height = canvasHeight;
+
+                Quagga.onDetected(processScanResult);
+                Quagga.onProcessed(processFrame); // フレーム処理後のイベント
+            });
         }
 
         function stopScanning() {
-            Quagga.stop();
-            document.getElementById('status').textContent = 'スキャンを停止しました。';
+            if (Quagga.initialized) {
+                Quagga.stop();
+                Quagga.initialized = false;
+                Quagga.offDetected(processScanResult);
+                Quagga.offProcessed(processFrame);
+                document.getElementById('status').textContent = 'スキャンを停止しました。';
+                // オーバーレイをクリア
+                const overlay = document.getElementById('overlay').getContext('2d');
+                overlay.clearRect(0, 0, overlay.canvas.width, overlay.canvas.height);
+            }
         }
 
         function processScanResult(result) {
@@ -267,6 +266,9 @@
             lastScannedCode = code;
             lastScannedTime = now;
 
+            // 認識されたバーコードの位置を描画
+            drawBoundingBox(result);
+
             if (scanMode === 'sales') handleSalesScan(code);
             else if (scanMode === 'warehouse') handleWarehouseScan(code);
         }
@@ -278,7 +280,7 @@
                     refillList.push({ code: product.barCode, name: product.name, status: '要補充' });
                     updateRefillList();
                     showStatusMessage(`追加: ${product.name}`, 'success');
-                    playSound('success');
+                    // playSound('success'); // 音声再生を行う場合
                 }
             } else {
                 showStatusMessage(`バーコード ${code} は商品データに登録されていません。`, 'error');
@@ -293,7 +295,9 @@
                     existingItem.status = 'ピッキング';
                     updateRefillList();
                     showStatusMessage(`${product.name} をピッキング状態に更新`, 'success');
-                    playSound('picking');
+                    // playSound('picking'); // 音声再生を行う場合
+                } else {
+                    showStatusMessage(`商品 ${product.name} はリストにありません。`, 'error');
                 }
             } else {
                 showStatusMessage(`バーコード ${code} は商品データに登録されていません。`, 'error');
@@ -318,6 +322,37 @@
             statusElement.textContent = message;
             statusElement.className = '';
             statusElement.classList.add(type === 'success' ? 'success' : 'error');
+
+            // メッセージを一定時間後にクリアする（オプション）
+            setTimeout(() => {
+                statusElement.textContent = '';
+                statusElement.className = '';
+            }, 5000);
+        }
+
+        function processFrame(result) {
+            const overlay = document.getElementById('overlay').getContext('2d');
+            overlay.clearRect(0, 0, overlay.canvas.width, overlay.canvas.height);
+            if (result && result.codeResult && result.codeResult.code) {
+                drawBoundingBox(result);
+            }
+        }
+
+        function drawBoundingBox(result) {
+            const ctx = document.getElementById('overlay').getContext('2d');
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+            if (result.box) {
+                ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(result.box[0][0], result.box[0][1]);
+                for (let i = 1; i < result.box.length; i++) {
+                    ctx.lineTo(result.box[i][0], result.box[i][1]);
+                }
+                ctx.closePath();
+                ctx.stroke();
+            }
         }
 
         function scrollToTop() {
