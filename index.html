@@ -44,11 +44,23 @@
         }
         #reader {
             width: 100%;
-            max-width: 600px;
+            max-width: 400px; /* スキャンの横幅を調整 */
+            height: 300px; /* スキャンの高さを調整 */
             margin: 20px auto;
             border: 2px solid #4db8ff;
             border-radius: 10px;
             overflow: hidden;
+            position: relative; /* ガイド表示のためにposition: relative; を追加 */
+        }
+        #scan-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 80%; /* ガイドの横幅 */
+            height: 60%; /* ガイドの高さ */
+            border: 2px dashed rgba(255, 255, 255, 0.7);
+            transform: translate(-50%, -50%);
+            pointer-events: none; /* ガイドがクリックイベントを邪魔しないように */
         }
         #status {
             margin-top: 10px;
@@ -142,7 +154,9 @@
         <button onclick="stopScanning()">スキャン停止</button>
     </div>
 
-    <div id="reader"></div>
+    <div id="reader">
+        <div id="scan-guide"></div> <!-- スキャンガイドを追加 -->
+    </div>
     <div id="status"></div>
 
     <h2>スキャン結果</h2>
