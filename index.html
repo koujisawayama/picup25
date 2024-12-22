@@ -109,6 +109,18 @@
         .scroll-top:hover {
             background-color: #3399ff;
         }
+        #log {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #4db8ff;
+            border-radius: 5px;
+            background-color: #002a40;
+            color: #e0f2ff;
+            text-align: left;
+            overflow-wrap: break-word;
+            white-space: pre-line;
+            min-height: 50px;
+        }
     </style>
 </head>
 <body>
@@ -129,6 +141,9 @@
     <h2>スキャン結果</h2>
     <ul id="salesRefillList"></ul>
 
+    <h2>ログ</h2>
+    <div id="log"></div>
+
     <div class="scroll-top" onclick="scrollToTop()">↑ 一番上に戻る</div>
 
     <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
@@ -139,15 +154,23 @@
         let lastScannedCode = null;
         let lastScannedTime = 0;
         const SCAN_COOLDOWN = 2000;
+        const logElement = document.getElementById('log');
+
+        function logMessage(message) {
+            console.log(message);
+            logElement.textContent += message + '\n';
+        }
 
         async function loadProductData() {
             try {
+                logMessage('商品データのロードを開始します...');
                 const response = await fetch('product-data.json');
                 if (!response.ok) throw new Error(`HTTPエラー: ${response.status}`);
                 productData = await response.json();
-                console.log('商品データをロードしました:', productData);
+                logMessage('商品データをロードしました。');
             } catch (error) {
                 console.error('商品データのロードに失敗:', error);
+                logMessage(`エラー: 商品データのロードに失敗しました: ${error.message}`);
                 document.getElementById('status').textContent = '商品データのロードに失敗しました。';
             }
         }
@@ -156,8 +179,10 @@
             scanMode = mode;
             const statusElement = document.getElementById('status');
             statusElement.textContent = 'スキャンを開始しています...';
+            logMessage(`スキャン開始（モード：${mode}）`);
 
             if (Quagga.initialized) {
+                logMessage('Quaggaが初期化済みです。停止して再設定します。');
                 Quagga.stop();
                 Quagga.offDetected(processScanResult);
                 Quagga.offProcessed(processFrame);
@@ -178,12 +203,14 @@
             }, (err) => {
                 if (err) {
                     console.error("Quagga初期化エラー:", err);
+                    logMessage(`エラー: スキャン初期化に失敗: ${err.message}`);
                     statusElement.textContent = 'エラー: スキャン初期化に失敗';
                     return;
                 }
                 Quagga.initialized = true;
                 Quagga.start();
                 statusElement.textContent = 'スキャン中...';
+                logMessage('Quaggaを起動し、スキャンを開始しました。');
                 Quagga.onDetected(processScanResult);
                 Quagga.onProcessed(processFrame);
             });
@@ -196,36 +223,56 @@
                 Quagga.offDetected(processScanResult);
                 Quagga.offProcessed(processFrame);
                 document.getElementById('status').textContent = 'スキャンを停止しました。';
+                logMessage('スキャンを停止しました。');
+            } else {
+                logMessage('スキャンは開始されていません。');
             }
         }
 
         function processScanResult(result) {
-            if (!result || !result.codeResult || !result.codeResult.code) return;
+            if (!result || !result.codeResult || !result.codeResult.code) {
+                logMessage('スキャン結果が不正です。');
+                return;
+            }
             const code = result.codeResult.code.trim();
-            console.log(`スキャンされたバーコード: ${code}`);
+            logMessage(`バーコードを検出しました: ${code}`);
 
             if (scanMode === 'sales') handleSalesScan(code);
             else if (scanMode === 'warehouse') handleWarehouseScan(code);
         }
 
         function handleSalesScan(code) {
+            logMessage(`売場スキャン処理: ${code}`);
             const product = productData.find(item => item.barCode === code);
             if (product) {
+                logMessage(`商品が見つかりました: ${product.name}`);
                 if (!refillList.some(item => item.code === product.barCode)) {
                     refillList.push({ code: product.barCode, name: product.name, status: '要補充' });
                     updateRefillList();
+                    logMessage(`補充リストに追加: ${product.name}`);
+                } else {
+                    logMessage(`${product.name} は既に補充リストにあります。`);
                 }
+            } else {
+                logMessage(`エラー: バーコード ${code} に一致する商品が見つかりません。`);
             }
         }
 
         function handleWarehouseScan(code) {
+            logMessage(`倉庫スキャン処理: ${code}`);
             const product = productData.find(item => item.salesCode === code);
             if (product) {
+                logMessage(`商品が見つかりました (倉庫コード): ${product.name}`);
                 const existingItem = refillList.find(item => item.code === product.barCode);
                 if (existingItem) {
                     existingItem.status = 'ピッキング';
                     updateRefillList();
+                    logMessage(`${product.name} をピッキング済みに更新`);
+                } else {
+                    logMessage(`警告: ${product.name} は補充リストにありません。`);
                 }
+            } else {
+                logMessage(`エラー: 倉庫コード ${code} に一致する商品が見つかりません。`);
             }
         }
 
@@ -238,10 +285,12 @@
                 if (item.status === 'ピッキング') li.classList.add('picking-status');
                 listElement.appendChild(li);
             });
+            logMessage('補充リストを更新しました。');
         }
 
         function processFrame(result) {
             if (!result || !result.boxes) return;
+            // 必要であれば、フレーム処理に関するログを追加できます
         }
 
         function scrollToTop() {
