@@ -146,15 +146,18 @@
 
     <div class="scroll-top" onclick="scrollToTop()">↑ 一番上に戻る</div>
 
+    <audio id="scanSound" preload="auto">
+        <source src="scan.mp3" type="audio/mp3">
+        <!-- 必要に応じて他の音声フォーマットも追加 -->
+    </audio>
+
     <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
     <script>
         let productData = [];
         let refillList = [];
         let scanMode = null;
-        let lastScannedCode = null;
-        let lastScannedTime = 0;
-        const SCAN_COOLDOWN = 2000;
         const logElement = document.getElementById('log');
+        let scannedItems = { 'sales': [], 'warehouse': [] };
 
         function logMessage(message) {
             console.log(message);
@@ -229,6 +232,12 @@
             }
         }
 
+        function playScanSound() {
+            const sound = document.getElementById('scanSound');
+            sound.currentTime = 0;
+            sound.play();
+        }
+
         function processScanResult(result) {
             if (!result || !result.codeResult || !result.codeResult.code) {
                 logMessage('スキャン結果が不正です。');
@@ -237,8 +246,14 @@
             const code = result.codeResult.code.trim();
             logMessage(`バーコードを検出しました: ${code}`);
 
-            if (scanMode === 'sales') handleSalesScan(code);
-            else if (scanMode === 'warehouse') handleWarehouseScan(code);
+            if (!scannedItems[scanMode].includes(code)) {
+                playScanSound();
+                if (scanMode === 'sales') handleSalesScan(code);
+                else if (scanMode === 'warehouse') handleWarehouseScan(code);
+                scannedItems[scanMode].push(code);
+            } else {
+                logMessage(`バーコード ${code} は現在のスキャンモードで既にスキャン済みです。`);
+            }
         }
 
         function handleSalesScan(code) {
