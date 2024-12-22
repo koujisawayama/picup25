@@ -218,14 +218,20 @@
                         // 必要に応じて他のconstraintsを追加 (例: zoom)
                     }
                 },
-                decoder: { readers: ["ean_reader"] },
+                decoder: {
+                    readers: ["ean_reader"],
+                    multiple: false,
+                    config: {
+                        ean_reader: {}
+                    }
+                },
                 locate: true,
                 locator: {
-                    halfSample: false, // より多くのピクセルを使用して検出
-                    patchSize: "large"  // より大きな領域を分析
+                    halfSample: false,
+                    patchSize: "large"
                 },
                 numOfWorkers: navigator.hardwareConcurrency || 1,
-                frequency: 10
+                frequency: 20 // スキャン頻度を上げる
             }, (err) => {
                 if (err) {
                     console.error("Quagga初期化エラー:", err);
