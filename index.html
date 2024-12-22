@@ -147,6 +147,19 @@
 
     <div class="scroll-top" onclick="scrollToTop()">↑ 一番上に戻る</div>
 
+    <audio id="successSound" preload="auto">
+        <source src="/sounds/success.mp3" type="audio/mp3">
+    </audio>
+    <audio id="pickingSound" preload="auto">
+        <source src="/sounds/picking.mp3" type="audio/mp3">
+    </audio>
+    <audio id="replenishSound" preload="auto">
+        <source src="/sounds/replenish.mp3" type="audio/mp3">
+    </audio>
+    <audio id="errorSound" preload="auto">
+        <source src="/sounds/error.mp3" type="audio/mp3">
+    </audio>
+
     <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
     <script>
         let productData = [];
@@ -199,11 +212,18 @@
                     name: "Live",
                     type: "LiveStream",
                     target: document.getElementById('reader'),
-                    constraints: { facingMode: "environment" }
+                    constraints: {
+                        facingMode: "environment",
+                        focusMode: "continuous-picture" // オートフォーカスを試す
+                        // 必要に応じて他のconstraintsを追加 (例: zoom)
+                    }
                 },
                 decoder: { readers: ["ean_reader"] },
                 locate: true,
-                locator: { halfSample: false, patchSize: "medium" },
+                locator: {
+                    halfSample: false, // より多くのピクセルを使用して検出
+                    patchSize: "large"  // より大きな領域を分析
+                },
                 numOfWorkers: navigator.hardwareConcurrency || 1,
                 frequency: 10
             }, (err) => {
@@ -236,25 +256,26 @@
         }
 
         function playScanSound(type) {
-            let soundFile;
+            let soundElementId;
             switch (type) {
                 case 'success':
-                    soundFile = '/sounds/success.mp3';
+                    soundElementId = 'successSound';
                     break;
                 case 'picking':
-                    soundFile = '/sounds/picking.mp3';
+                    soundElementId = 'pickingSound';
                     break;
                 case 'replenish':
-                    soundFile = '/sounds/replenish.mp3';
+                    soundElementId = 'replenishSound';
                     break;
                 case 'error':
-                    soundFile = '/sounds/error.mp3';
+                    soundElementId = 'errorSound';
                     break;
                 default:
                     return;
             }
-            const audio = new Audio(soundFile);
-            audio.play();
+            const sound = document.getElementById(soundElementId);
+            sound.currentTime = 0;
+            sound.play();
         }
 
         function processScanResult(result) {
