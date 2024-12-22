@@ -50,6 +50,7 @@
             position: relative;
             border: 2px dashed #4db8ff;
             border-radius: 10px;
+            overflow: hidden; /* はみ出しを防止 */
         }
         #scan-guide {
             position: absolute;
@@ -117,9 +118,9 @@
             background-color: #002a40;
             color: #e0f2ff;
             text-align: left;
-            overflow-wrap: break-word;
-            white-space: pre-line;
-            min-height: 50px;
+            overflow-y: scroll;
+            height: 100px; /* 5行分の高さを目安に調整 */
+            line-height: 1.4em; /* 行間を調整 */
         }
     </style>
 </head>
@@ -146,11 +147,6 @@
 
     <div class="scroll-top" onclick="scrollToTop()">↑ 一番上に戻る</div>
 
-    <audio id="scanSound" preload="auto">
-        <source src="scan.mp3" type="audio/mp3">
-        <!-- 必要に応じて他の音声フォーマットも追加 -->
-    </audio>
-
     <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
     <script>
         let productData = [];
@@ -162,6 +158,13 @@
         function logMessage(message) {
             console.log(message);
             logElement.textContent += message + '\n';
+            // ログが最大行数を超えたら古いログを削除
+            const lines = logElement.textContent.trim().split('\n');
+            const maxLines = 5;
+            if (lines.length > maxLines) {
+                logElement.textContent = lines.slice(lines.length - maxLines).join('\n');
+            }
+            logElement.scrollTop = logElement.scrollHeight; // 最新のログを表示するためにスクロール
         }
 
         async function loadProductData() {
@@ -232,10 +235,26 @@
             }
         }
 
-        function playScanSound() {
-            const sound = document.getElementById('scanSound');
-            sound.currentTime = 0;
-            sound.play();
+        function playScanSound(type) {
+            let soundFile;
+            switch (type) {
+                case 'success':
+                    soundFile = '/sounds/success.mp3';
+                    break;
+                case 'picking':
+                    soundFile = '/sounds/picking.mp3';
+                    break;
+                case 'replenish':
+                    soundFile = '/sounds/replenish.mp3';
+                    break;
+                case 'error':
+                    soundFile = '/sounds/error.mp3';
+                    break;
+                default:
+                    return;
+            }
+            const audio = new Audio(soundFile);
+            audio.play();
         }
 
         function processScanResult(result) {
@@ -247,7 +266,26 @@
             logMessage(`バーコードを検出しました: ${code}`);
 
             if (!scannedItems[scanMode].includes(code)) {
-                playScanSound();
+                let soundType = 'success';
+                if (scanMode === 'sales') {
+                    const product = productData.find(item => item.barCode === code);
+                    if (product && !refillList.some(item => item.code === product.barCode)) {
+                        playScanSound('replenish');
+                    } else if (!product) {
+                        playScanSound('error');
+                        soundType = 'error';
+                    }
+                } else if (scanMode === 'warehouse') {
+                    const product = productData.find(item => item.salesCode === code);
+                    const existingItem = refillList.find(item => item.code === product.barCode);
+                    if (product && existingItem && existingItem.status !== 'ピッキング') {
+                        playScanSound('picking');
+                    } else if (!product) {
+                        playScanSound('error');
+                        soundType = 'error';
+                    }
+                }
+
                 if (scanMode === 'sales') handleSalesScan(code);
                 else if (scanMode === 'warehouse') handleWarehouseScan(code);
                 scannedItems[scanMode].push(code);
