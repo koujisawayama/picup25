@@ -44,23 +44,11 @@
         }
         #reader {
             width: 100%;
-            max-width: 400px;
-            height: 300px;
+            max-width: 600px;
             margin: 20px auto;
-            position: relative;
-            border: 2px dashed #4db8ff;
+            border: 2px solid #4db8ff;
             border-radius: 10px;
-            overflow: hidden; /* はみ出しを防止 */
-        }
-        #scan-guide {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 80%;
-            height: 30px;
-            border: 2px dashed rgba(255, 255, 255, 0.7);
-            transform: translate(-50%, -50%);
-            box-sizing: border-box;
+            overflow: hidden;
         }
         #status {
             margin-top: 10px;
@@ -89,6 +77,9 @@
             border-radius: 5px;
             background-color: #00304d;
             color: #e0f2ff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .picking-status {
             background-color: #006d77;
@@ -119,8 +110,26 @@
             color: #e0f2ff;
             text-align: left;
             overflow-y: scroll;
-            height: 100px; /* 5行分の高さを目安に調整 */
-            line-height: 1.4em; /* 行間を調整 */
+            height: 100px;
+            line-height: 1.4em;
+        }
+        .refill-item-name {
+            flex-grow: 1;
+            text-align: left;
+        }
+        .refill-item-status {
+            margin-left: 10px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+        .refill-item-status.要補充 {
+            background-color: #ffc107;
+            color: #001829;
+        }
+        .refill-item-status.ピッキング {
+            background-color: #28a745;
+            color: #ffffff;
         }
     </style>
 </head>
@@ -133,10 +142,7 @@
         <button onclick="stopScanning()">スキャン停止</button>
     </div>
 
-    <div id="reader">
-        <div id="scan-guide"></div>
-        <canvas id="overlay" style="position: absolute; top: 0; left: 0;"></canvas>
-    </div>
+    <div id="reader"></div>
     <div id="status"></div>
 
     <h2>スキャン結果</h2>
@@ -148,16 +154,16 @@
     <div class="scroll-top" onclick="scrollToTop()">↑ 一番上に戻る</div>
 
     <audio id="successSound" preload="auto">
-        <source src="/sounds/success.mp3" type="audio/mp3">
+        <source src="./sounds/success.mp3" type="audio/mp3">
     </audio>
     <audio id="pickingSound" preload="auto">
-        <source src="/sounds/picking.mp3" type="audio/mp3">
+        <source src="./sounds/picking.mp3" type="audio/mp3">
     </audio>
     <audio id="replenishSound" preload="auto">
-        <source src="/sounds/replenish.mp3" type="audio/mp3">
+        <source src="./sounds/replenish.mp3" type="audio/mp3">
     </audio>
     <audio id="errorSound" preload="auto">
-        <source src="/sounds/error.mp3" type="audio/mp3">
+        <source src="./sounds/error.mp3" type="audio/mp3">
     </audio>
 
     <script src="https://unpkg.com/@ericblade/quagga2/dist/quagga.min.js"></script>
@@ -167,17 +173,17 @@
         let scanMode = null;
         const logElement = document.getElementById('log');
         let scannedItems = { 'sales': [], 'warehouse': [] };
+        let isPlayingSound = false;
 
         function logMessage(message) {
             console.log(message);
             logElement.textContent += message + '\n';
-            // ログが最大行数を超えたら古いログを削除
             const lines = logElement.textContent.trim().split('\n');
             const maxLines = 5;
             if (lines.length > maxLines) {
                 logElement.textContent = lines.slice(lines.length - maxLines).join('\n');
             }
-            logElement.scrollTop = logElement.scrollHeight; // 最新のログを表示するためにスクロール
+            logElement.scrollTop = logElement.scrollHeight;
         }
 
         async function loadProductData() {
@@ -214,16 +220,12 @@
                     target: document.getElementById('reader'),
                     constraints: {
                         facingMode: "environment",
-                        focusMode: "continuous-picture" // オートフォーカスを試す
-                        // 必要に応じて他のconstraintsを追加 (例: zoom)
+                        focusMode: "continuous-picture"
                     }
                 },
                 decoder: {
                     readers: ["ean_reader"],
-                    multiple: false,
-                    config: {
-                        ean_reader: {}
-                    }
+                    multiple: false
                 },
                 locate: true,
                 locator: {
@@ -231,7 +233,7 @@
                     patchSize: "large"
                 },
                 numOfWorkers: navigator.hardwareConcurrency || 1,
-                frequency: 20 // スキャン頻度を上げる
+                frequency: 10
             }, (err) => {
                 if (err) {
                     console.error("Quagga初期化エラー:", err);
@@ -261,27 +263,24 @@
             }
         }
 
-        function playScanSound(type) {
-            let soundElementId;
-            switch (type) {
-                case 'success':
-                    soundElementId = 'successSound';
-                    break;
-                case 'picking':
-                    soundElementId = 'pickingSound';
-                    break;
-                case 'replenish':
-                    soundElementId = 'replenishSound';
-                    break;
-                case 'error':
-                    soundElementId = 'errorSound';
-                    break;
-                default:
-                    return;
-            }
+        async function playSound(type) {
+            if (isPlayingSound) return;
+            isPlayingSound = true;
+            const soundElementId = `${type}Sound`;
             const sound = document.getElementById(soundElementId);
-            sound.currentTime = 0;
-            sound.play();
+            if (sound) {
+                try {
+                    sound.currentTime = 0;
+                    await sound.play();
+                } catch (error) {
+                    console.error(`音声再生エラー (${type}):`, error);
+                } finally {
+                    isPlayingSound = false;
+                }
+            } else {
+                console.error(`サウンド要素が見つかりません: ${soundElementId}`);
+                isPlayingSound = false;
+            }
         }
 
         function processScanResult(result) {
@@ -297,18 +296,18 @@
                 if (scanMode === 'sales') {
                     const product = productData.find(item => item.barCode === code);
                     if (product && !refillList.some(item => item.code === product.barCode)) {
-                        playScanSound('replenish');
+                        playSound('replenish');
                     } else if (!product) {
-                        playScanSound('error');
+                        playSound('error');
                         soundType = 'error';
                     }
                 } else if (scanMode === 'warehouse') {
                     const product = productData.find(item => item.salesCode === code);
                     const existingItem = refillList.find(item => item.code === product.barCode);
                     if (product && existingItem && existingItem.status !== 'ピッキング') {
-                        playScanSound('picking');
+                        playSound('picking');
                     } else if (!product) {
-                        playScanSound('error');
+                        playSound('error');
                         soundType = 'error';
                     }
                 }
@@ -361,8 +360,10 @@
             listElement.innerHTML = '';
             refillList.forEach(item => {
                 const li = document.createElement('li');
-                li.textContent = `${item.name} (${item.status})`;
-                if (item.status === 'ピッキング') li.classList.add('picking-status');
+                li.innerHTML = `
+                    <span class="refill-item-name">${item.name}</span>
+                    <span class="refill-item-status ${item.status}">${item.status}</span>
+                `;
                 listElement.appendChild(li);
             });
             logMessage('補充リストを更新しました。');
@@ -370,7 +371,6 @@
 
         function processFrame(result) {
             if (!result || !result.boxes) return;
-            // 必要であれば、フレーム処理に関するログを追加できます
         }
 
         function scrollToTop() {
